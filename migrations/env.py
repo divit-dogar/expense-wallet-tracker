@@ -7,6 +7,7 @@ from app.core.database import Base
 from app.core.config import settings
 from app.models.user import User
 from app.models.wallet import Wallet
+from app.models.expense_category import ExpenseCategory
 
 config = context.config
 
