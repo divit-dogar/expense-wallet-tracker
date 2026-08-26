@@ -1,10 +1,14 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.wallet import Wallet
 
 
 class User(Base):
@@ -16,9 +20,17 @@ class User(Base):
         default=uuid.uuid4,
     )
 
-    first_name: Mapped[str] = mapped_column(String(100))
+    wallets: Mapped[list["Wallet"]] = relationship(
+        back_populates="user"
+    )
 
-    last_name: Mapped[str] = mapped_column(String(100))
+    first_name: Mapped[str] = mapped_column(
+        String(100)
+    )
+
+    last_name: Mapped[str] = mapped_column(
+        String(100)
+    )
 
     email: Mapped[str] = mapped_column(
         String(255),
@@ -26,9 +38,13 @@ class User(Base):
         index=True,
     )
 
-    hashed_password: Mapped[str] = mapped_column(String(255))
+    hashed_password: Mapped[str] = mapped_column(
+        String(255)
+    )
 
-    status: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(
+        String(50)
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
