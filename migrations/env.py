@@ -5,7 +5,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.database import Base
 from app.core.config import settings
-
+from app.models.user import User
 
 config = context.config
 
