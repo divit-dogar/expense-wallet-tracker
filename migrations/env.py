@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.wallet import Wallet
 from app.models.expense_category import ExpenseCategory
-
+from app.models.expense import Expense
 config = context.config
 
 if config.config_file_name is not None:

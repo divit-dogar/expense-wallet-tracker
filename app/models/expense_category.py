@@ -9,6 +9,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.expense import Expense
 
 
 class ExpenseCategory(Base):
@@ -28,6 +29,10 @@ class ExpenseCategory(Base):
 
     user: Mapped["User"] = relationship(
         back_populates="expense_categories"
+    )
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        back_populates="category"
     )
 
     name: Mapped[str] = mapped_column(
@@ -70,5 +75,3 @@ class ExpenseCategory(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-
-    
