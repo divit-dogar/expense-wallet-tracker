@@ -1,0 +1,23 @@
+[project]
+name = "expense-tracker"
+version = "0.1.0"
+description = "Personal Expense and Wallet Tracker API"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "asyncpg",
+    "alembic",
+    "pydantic",
+    "pydantic-settings",
+    "pyjwt",
+    "pwdlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
