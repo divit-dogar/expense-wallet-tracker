@@ -10,6 +10,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.wallet import Wallet
     from app.models.expense_category import ExpenseCategory
+    from app.models.expense import Expense
 
 
 class User(Base):
@@ -26,6 +27,10 @@ class User(Base):
     )
 
     expense_categories: Mapped[list["ExpenseCategory"]] = relationship(
+        back_populates="user"
+    )
+
+    expenses: Mapped[list["Expense"]] = relationship(
         back_populates="user"
     )
 

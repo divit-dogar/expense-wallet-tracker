@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.expense import Expense
 
 
 class WalletType(str, Enum):
@@ -37,6 +38,10 @@ class Wallet(Base):
 
     user: Mapped["User"] = relationship(
         back_populates="wallets"
+    )
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        back_populates="wallet"
     )
 
     name: Mapped[str] = mapped_column(
