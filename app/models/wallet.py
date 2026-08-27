@@ -1,9 +1,17 @@
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import (
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -21,17 +29,38 @@ class WalletType(str, Enum):
     OTHER = "OTHER"
 
 
+class WalletStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    CLOSED = "CLOSED"
+
+
+class Currency(str, Enum):
+    INR = "INR"
+    USD = "USD"
+    EUR = "EUR"
+    GBP = "GBP"
+    AED = "AED"
+
+
 class Wallet(Base):
     __tablename__ = "wallets"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,
+        autoincrement=True,
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    uuid: Mapped[uuid_lib.UUID] = mapped_column(
         Uuid,
+        unique=True,
+        nullable=False,
+        default=uuid_lib.uuid4,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("users.id"),
         nullable=False,
     )
@@ -50,7 +79,7 @@ class Wallet(Base):
     )
 
     wallet_type: Mapped[WalletType] = mapped_column(
-        String(20),
+        SAEnum(WalletType),
         nullable=False,
     )
 
@@ -66,15 +95,16 @@ class Wallet(Base):
         default=0,
     )
 
-    currency: Mapped[str] = mapped_column(
-        String(3),
+    currency: Mapped[Currency] = mapped_column(
+        SAEnum(Currency),
         nullable=False,
-        default="INR",
+        default=Currency.INR,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(50),
+    status: Mapped[WalletStatus] = mapped_column(
+        SAEnum(WalletStatus),
         nullable=False,
+        default=WalletStatus.ACTIVE,
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -1,8 +1,18 @@
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,33 +23,41 @@ if TYPE_CHECKING:
     from app.models.expense_category import ExpenseCategory
 
 
+class ExpenseStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
+
+
 class Expense(Base):
     __tablename__ = "expenses"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,
+        autoincrement=True,
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    uuid: Mapped[uuid_lib.UUID] = mapped_column(
         Uuid,
+        unique=True,
+        nullable=False,
+        default=uuid_lib.uuid4,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("users.id"),
         nullable=False,
     )
 
-    wallet_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    wallet_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("wallets.id"),
         nullable=False,
     )
-    
-    expenses: Mapped[list["Expense"]] = relationship(
-        back_populates="category"
-    )
 
-    category_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    category_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("expense_categories.id"),
         nullable=False,
     )
@@ -59,9 +77,10 @@ class Expense(Base):
         nullable=False,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(50),
+    status: Mapped[ExpenseStatus] = mapped_column(
+        SAEnum(ExpenseStatus),
         nullable=False,
+        default=ExpenseStatus.ACTIVE,
     )
 
     created_at: Mapped[datetime] = mapped_column(
