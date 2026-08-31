@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -38,10 +39,35 @@ class ExpenseRepository:
     async def get_by_user(
         self,
         user_id: int,
+        wallet_id: int | None = None,
+        category_id: int | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
     ) -> list[Expense]:
+
         statement = select(Expense).where(
             Expense.user_id == user_id
         )
+
+        if wallet_id is not None:
+            statement = statement.where(
+                Expense.wallet_id == wallet_id
+            )
+
+        if category_id is not None:
+            statement = statement.where(
+                Expense.category_id == category_id
+            )
+
+        if from_date is not None:
+            statement = statement.where(
+                Expense.expense_date >= from_date
+            )
+
+        if to_date is not None:
+            statement = statement.where(
+                Expense.expense_date <= to_date
+            )
 
         result = await self.db.execute(statement)
 

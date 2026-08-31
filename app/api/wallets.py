@@ -8,7 +8,9 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.models.user import User
 from app.models.wallet import Wallet
 from app.repositories.wallet import WalletRepository
 from app.schemas.wallet import (
@@ -16,6 +18,7 @@ from app.schemas.wallet import (
     WalletResponse,
     WalletUpdate,
 )
+from app.services.wallet_service import WalletService
 
 
 router = APIRouter(
@@ -32,12 +35,13 @@ router = APIRouter(
 )
 async def create_wallet(
     wallet_data: WalletCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repository = WalletRepository(db)
+    service = WalletService(db)
 
     wallet = Wallet(
-        user_id=1,
+        user_id=current_user.id,
         name=wallet_data.name,
         wallet_type=wallet_data.wallet_type,
         opening_balance=wallet_data.opening_balance,
@@ -46,18 +50,19 @@ async def create_wallet(
         status="ACTIVE",
     )
 
-    return await repository.create(wallet)
+    return await service.create_wallet(wallet)
 
 
 # 2. GET ALL
 @router.get("/")
 async def get_wallets(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     repository = WalletRepository(db)
 
     wallets = await repository.get_by_user(
-        user_id=1
+        user_id=current_user.id
     )
 
     total_balance = sum(
@@ -78,15 +83,25 @@ async def get_wallets(
 )
 async def get_wallet(
     wallet_uuid: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     repository = WalletRepository(db)
 
-    wallet = await repository.get_by_uuid(wallet_uuid)
+    wallet = await repository.get_by_uuid(
+        wallet_uuid
+    )
 
     if not wallet:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Make sure the wallet belongs to the logged-in user
+    if wallet.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Wallet not found",
         )
 
@@ -101,15 +116,25 @@ async def get_wallet(
 async def update_wallet(
     wallet_uuid: UUID,
     wallet_data: WalletUpdate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     repository = WalletRepository(db)
 
-    wallet = await repository.get_by_uuid(wallet_uuid)
+    wallet = await repository.get_by_uuid(
+        wallet_uuid
+    )
 
     if not wallet:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Make sure the wallet belongs to the logged-in user
+    if wallet.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Wallet not found",
         )
 
@@ -122,22 +147,36 @@ async def update_wallet(
 
     return await repository.update(wallet)
 
+
+# 5. DELETE
 @router.delete(
     "/{wallet_uuid}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_wallet(
     wallet_uuid: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     repository = WalletRepository(db)
 
-    wallet = await repository.get_by_uuid(wallet_uuid)
+    wallet = await repository.get_by_uuid(
+        wallet_uuid
+    )
 
     if not wallet:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Make sure the wallet belongs to the logged-in user
+    if wallet.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Wallet not found",
         )
 
     await repository.delete(wallet)
+
+    return None
