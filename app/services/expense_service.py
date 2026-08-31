@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -59,7 +60,9 @@ class ExpenseService:
                 detail="Expense category not found",
             )
 
-        if wallet.current_balance < amount:
+        expense_amount = Decimal(str(amount))
+
+        if wallet.current_balance < expense_amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Insufficient wallet balance",
@@ -69,13 +72,13 @@ class ExpenseService:
             user_id=user_id,
             wallet_id=wallet.id,
             category_id=category.id,
-            amount=amount,
+            amount=expense_amount,
             description=description,
             expense_date=expense_date,
             status=ExpenseStatus.ACTIVE,
         )
 
-        wallet.current_balance -= amount
+        wallet.current_balance -= expense_amount
 
         return await self.expense_repository.create(
             expense
@@ -140,7 +143,7 @@ class ExpenseService:
             from_date=from_date,
             to_date=to_date,
         )
-    
+
     async def update_expense(
         self,
         user_id: int,
@@ -149,7 +152,7 @@ class ExpenseService:
         category_uuid: UUID | None = None,
         amount: float | None = None,
         description: str | None = None,
-        expense_date=None,
+        expense_date: datetime | None = None,
         status: ExpenseStatus | None = None,
     ) -> Expense:
 
@@ -163,7 +166,7 @@ class ExpenseService:
                 detail="Expense not found",
             )
 
-        old_amount = expense.amount
+        old_amount = Decimal(str(expense.amount))
         old_wallet_id = expense.wallet_id
 
         # Get current wallet
@@ -177,8 +180,16 @@ class ExpenseService:
                 detail="Wallet not found",
             )
 
+        # Convert new amount to Decimal
+        new_amount = (
+            Decimal(str(amount))
+            if amount is not None
+            else old_amount
+        )
+
         # Handle wallet change
         if wallet_uuid is not None:
+
             new_wallet = await self.wallet_repository.get_by_uuid(
                 wallet_uuid
             )
@@ -193,28 +204,48 @@ class ExpenseService:
                 )
 
             if new_wallet.id != old_wallet_id:
-                if new_wallet.current_balance < (
-                    amount if amount is not None else old_amount
-                ):
+
+                if new_wallet.current_balance < new_amount:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Insufficient wallet balance",
                     )
 
+                # Return old expense amount to old wallet
                 old_wallet.current_balance += old_amount
 
-                new_wallet.current_balance -= (
-                    amount if amount is not None else old_amount
-                )
+                # Deduct new expense amount from new wallet
+                new_wallet.current_balance -= new_amount
 
                 expense.wallet_id = new_wallet.id
 
-        # Handle amount change without wallet change
-        elif amount is not None and amount != old_amount:
+            else:
+                # Same wallet, only amount changed
+                difference = new_amount - old_amount
 
-            difference = amount - old_amount
+                if difference > 0:
+
+                    if old_wallet.current_balance < difference:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Insufficient wallet balance",
+                        )
+
+                    old_wallet.current_balance -= difference
+
+                elif difference < 0:
+
+                    old_wallet.current_balance += abs(
+                        difference
+                    )
+
+        # Handle amount change without wallet change
+        elif amount is not None and new_amount != old_amount:
+
+            difference = new_amount - old_amount
 
             if difference > 0:
+
                 if old_wallet.current_balance < difference:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -223,11 +254,15 @@ class ExpenseService:
 
                 old_wallet.current_balance -= difference
 
-            else:
-                old_wallet.current_balance += abs(difference)
+            elif difference < 0:
+
+                old_wallet.current_balance += abs(
+                    difference
+                )
 
         # Handle category change
         if category_uuid is not None:
+
             category = await self.category_repository.get_by_uuid(
                 category_uuid
             )
@@ -243,9 +278,9 @@ class ExpenseService:
 
             expense.category_id = category.id
 
-        # Update remaining fields
+        # Update expense fields
         if amount is not None:
-            expense.amount = amount
+            expense.amount = new_amount
 
         if description is not None:
             expense.description = description
@@ -288,6 +323,8 @@ class ExpenseService:
 
         # Return the expense amount to the wallet
         if expense.status == ExpenseStatus.ACTIVE:
-            wallet.current_balance += expense.amount
+            wallet.current_balance += Decimal(
+                str(expense.amount)
+            )
 
         await self.expense_repository.delete(expense)
