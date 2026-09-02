@@ -1,12 +1,10 @@
-from datetime import datetime
 from uuid import UUID
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.expense import Expense
-from app.models.wallet import Wallet
-from app.models.expense_category import ExpenseCategory
 
 
 class ExpenseRepository:
@@ -14,20 +12,38 @@ class ExpenseRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    # CREATE
     async def create(
         self,
         expense: Expense,
     ) -> Expense:
         self.db.add(expense)
+
         await self.db.commit()
         await self.db.refresh(expense)
 
         return expense
 
+    # GET BY INTERNAL ID
+    async def get_by_id(
+        self,
+        expense_id: int,
+    ) -> Expense | None:
+
+        statement = select(Expense).where(
+            Expense.id == expense_id
+        )
+
+        result = await self.db.execute(statement)
+
+        return result.scalar_one_or_none()
+
+    # GET BY UUID
     async def get_by_uuid(
         self,
         expense_uuid: UUID,
     ) -> Expense | None:
+
         statement = select(Expense).where(
             Expense.uuid == expense_uuid
         )
@@ -36,6 +52,7 @@ class ExpenseRepository:
 
         return result.scalar_one_or_none()
 
+    # GET USER EXPENSES WITH FILTERS
     async def get_by_user(
         self,
         user_id: int,
@@ -49,21 +66,25 @@ class ExpenseRepository:
             Expense.user_id == user_id
         )
 
+        # FILTER BY WALLET
         if wallet_id is not None:
             statement = statement.where(
                 Expense.wallet_id == wallet_id
             )
 
+        # FILTER BY CATEGORY
         if category_id is not None:
             statement = statement.where(
                 Expense.category_id == category_id
             )
 
+        # FILTER FROM DATE
         if from_date is not None:
             statement = statement.where(
                 Expense.expense_date >= from_date
             )
 
+        # FILTER TO DATE
         if to_date is not None:
             statement = statement.where(
                 Expense.expense_date <= to_date
@@ -73,42 +94,40 @@ class ExpenseRepository:
 
         return list(result.scalars().all())
 
-    async def get_wallet_by_uuid(
+    # CHECK WHETHER WALLET HAS EXPENSES
+    async def exists_by_wallet(
         self,
-        wallet_uuid: UUID,
-    ) -> Wallet | None:
-        statement = select(Wallet).where(
-            Wallet.uuid == wallet_uuid
+        wallet_id: int,
+    ) -> bool:
+
+        statement = (
+            select(Expense.id)
+            .where(
+                Expense.wallet_id == wallet_id
+            )
+            .limit(1)
         )
 
         result = await self.db.execute(statement)
 
-        return result.scalar_one_or_none()
+        return result.scalar_one_or_none() is not None
 
-    async def get_category_by_uuid(
-        self,
-        category_uuid: UUID,
-    ) -> ExpenseCategory | None:
-        statement = select(ExpenseCategory).where(
-            ExpenseCategory.uuid == category_uuid
-        )
-
-        result = await self.db.execute(statement)
-
-        return result.scalar_one_or_none()
-
+    # UPDATE
     async def update(
         self,
         expense: Expense,
     ) -> Expense:
+
         await self.db.commit()
         await self.db.refresh(expense)
 
         return expense
 
+    # DELETE
     async def delete(
         self,
         expense: Expense,
     ) -> None:
+
         await self.db.delete(expense)
         await self.db.commit()
