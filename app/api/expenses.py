@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
-from app.models.expense import Expense, ExpenseStatus
 from app.models.user import User
 from app.repositories.expense import ExpenseRepository
 from app.repositories.wallet import WalletRepository
@@ -24,7 +23,10 @@ router = APIRouter(
     tags=["Expenses"],
 )
 
+
+# =========================================================
 # 1. CREATE EXPENSE
+# =========================================================
 @router.post(
     "/",
     response_model=ExpenseResponse,
@@ -49,25 +51,39 @@ async def create_expense(
     wallet_repository = WalletRepository(db)
     category_repository = ExpenseCategoryRepository(db)
 
+    # Get wallet
     wallet = await wallet_repository.get_by_id(
         created_expense.wallet_id
     )
 
-    category = await category_repository.get_by_id(
-        created_expense.category_id
-    )
+    if not wallet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Category can be NULL
+    category = None
+
+    if created_expense.category_id is not None:
+        category = await category_repository.get_by_id(
+            created_expense.category_id
+        )
 
     return ExpenseResponse(
         uuid=created_expense.uuid,
         wallet_id=wallet.uuid,
-        category_id=category.uuid,
+        category_id=category.uuid if category else None,
         amount=created_expense.amount,
         description=created_expense.description,
         expense_date=created_expense.expense_date,
         status=created_expense.status,
     )
 
+
+# =========================================================
 # 2. GET ALL EXPENSES / FILTER EXPENSES
+# =========================================================
 @router.get(
     "/",
     response_model=list[ExpenseResponse],
@@ -96,19 +112,28 @@ async def get_expenses(
     response = []
 
     for expense in expenses:
+
+        # Get wallet
         wallet = await wallet_repository.get_by_id(
             expense.wallet_id
         )
 
-        category = await category_repository.get_by_id(
-            expense.category_id
-        )
+        if not wallet:
+            continue
+
+        # Category can be NULL
+        category = None
+
+        if expense.category_id is not None:
+            category = await category_repository.get_by_id(
+                expense.category_id
+            )
 
         response.append(
             ExpenseResponse(
                 uuid=expense.uuid,
                 wallet_id=wallet.uuid,
-                category_id=category.uuid,
+                category_id=category.uuid if category else None,
                 amount=expense.amount,
                 description=expense.description,
                 expense_date=expense.expense_date,
@@ -119,7 +144,9 @@ async def get_expenses(
     return response
 
 
+# =========================================================
 # 3. GET ONE EXPENSE
+# =========================================================
 @router.get(
     "/{expense_id}",
     response_model=ExpenseResponse,
@@ -143,25 +170,39 @@ async def get_expense(
             detail="Expense not found",
         )
 
+    # Get wallet
     wallet = await wallet_repository.get_by_id(
         expense.wallet_id
     )
 
-    category = await category_repository.get_by_id(
-        expense.category_id
-    )
+    if not wallet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Category can be NULL
+    category = None
+
+    if expense.category_id is not None:
+        category = await category_repository.get_by_id(
+            expense.category_id
+        )
 
     return ExpenseResponse(
         uuid=expense.uuid,
         wallet_id=wallet.uuid,
-        category_id=category.uuid,
+        category_id=category.uuid if category else None,
         amount=expense.amount,
         description=expense.description,
         expense_date=expense.expense_date,
         status=expense.status,
     )
 
+
+# =========================================================
 # 4. UPDATE EXPENSE
+# =========================================================
 @router.patch(
     "/{expense_id}",
     response_model=ExpenseResponse,
@@ -192,28 +233,42 @@ async def update_expense(
     wallet_repository = WalletRepository(db)
     category_repository = ExpenseCategoryRepository(db)
 
+    # Get wallet
     wallet = await wallet_repository.get_by_id(
         updated_expense.wallet_id
     )
 
-    category = await category_repository.get_by_id(
-        updated_expense.category_id
-    )
+    if not wallet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    # Category can be NULL
+    category = None
+
+    if updated_expense.category_id is not None:
+        category = await category_repository.get_by_id(
+            updated_expense.category_id
+        )
 
     return ExpenseResponse(
         uuid=updated_expense.uuid,
         wallet_id=wallet.uuid,
-        category_id=category.uuid,
+        category_id=category.uuid if category else None,
         amount=updated_expense.amount,
         description=updated_expense.description,
         expense_date=updated_expense.expense_date,
         status=updated_expense.status,
     )
 
+
+# =========================================================
 # 5. DELETE EXPENSE
+# =========================================================
 @router.delete(
     "/{expense_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
 )
 async def delete_expense(
     expense_id: UUID,
@@ -227,4 +282,6 @@ async def delete_expense(
         expense_uuid=expense_id,
     )
 
-    return None
+    return {
+        "message": "Expense deleted successfully"
+    }

@@ -18,16 +18,22 @@ class ExpenseService:
         self.wallet_repository = WalletRepository(db)
         self.category_repository = ExpenseCategoryRepository(db)
 
+    # =====================================================
+    # CREATE EXPENSE
+    # =====================================================
     async def create_expense(
         self,
         user_id: int,
         wallet_uuid: UUID,
-        category_uuid: UUID,
+        category_uuid: UUID | None,
         amount: float,
         description: str | None,
         expense_date: datetime,
     ) -> Expense:
 
+        # -------------------------------------------------
+        # Get wallet
+        # -------------------------------------------------
         wallet = await self.wallet_repository.get_by_uuid(
             wallet_uuid
         )
@@ -38,52 +44,76 @@ class ExpenseService:
                 detail="Wallet not found",
             )
 
+        # Make sure wallet belongs to current user
         if wallet.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Wallet not found",
             )
 
-        category = await self.category_repository.get_by_uuid(
-            category_uuid
-        )
+        # -------------------------------------------------
+        # Category is optional
+        # -------------------------------------------------
+        category_id = None
 
-        if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Expense category not found",
+        if category_uuid is not None:
+
+            category = await self.category_repository.get_by_uuid(
+                category_uuid
             )
 
-        if category.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Expense category not found",
-            )
+            if not category:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Expense category not found",
+                )
 
+            # Make sure category belongs to current user
+            if category.user_id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Expense category not found",
+                )
+
+            category_id = category.id
+
+        # -------------------------------------------------
+        # Convert amount to Decimal
+        # -------------------------------------------------
         expense_amount = Decimal(str(amount))
 
+        # -------------------------------------------------
+        # Check wallet balance
+        # -------------------------------------------------
         if wallet.current_balance < expense_amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Insufficient wallet balance",
             )
 
+        # -------------------------------------------------
+        # Create Expense object
+        # -------------------------------------------------
         expense = Expense(
             user_id=user_id,
             wallet_id=wallet.id,
-            category_id=category.id,
+            category_id=category_id,
             amount=expense_amount,
             description=description,
             expense_date=expense_date,
             status=ExpenseStatus.ACTIVE,
         )
 
+        # Deduct amount from wallet
         wallet.current_balance -= expense_amount
 
         return await self.expense_repository.create(
             expense
         )
 
+    # =====================================================
+    # GET EXPENSES
+    # =====================================================
     async def get_expenses(
         self,
         user_id: int,
@@ -96,8 +126,11 @@ class ExpenseService:
         wallet_id = None
         category_id = None
 
-        # Validate wallet and convert UUID to database ID
+        # -------------------------------------------------
+        # Wallet filter
+        # -------------------------------------------------
         if wallet_uuid is not None:
+
             wallet = await self.wallet_repository.get_by_uuid(
                 wallet_uuid
             )
@@ -114,10 +147,14 @@ class ExpenseService:
                     detail="Wallet not found",
                 )
 
+            # Convert UUID to internal database ID
             wallet_id = wallet.id
 
-        # Validate category and convert UUID to database ID
+        # -------------------------------------------------
+        # Category filter
+        # -------------------------------------------------
         if category_uuid is not None:
+
             category = await self.category_repository.get_by_uuid(
                 category_uuid
             )
@@ -134,8 +171,12 @@ class ExpenseService:
                     detail="Expense category not found",
                 )
 
+            # Convert UUID to internal database ID
             category_id = category.id
 
+        # -------------------------------------------------
+        # Get expenses
+        # -------------------------------------------------
         return await self.expense_repository.get_by_user(
             user_id=user_id,
             wallet_id=wallet_id,
@@ -144,6 +185,9 @@ class ExpenseService:
             to_date=to_date,
         )
 
+    # =====================================================
+    # UPDATE EXPENSE
+    # =====================================================
     async def update_expense(
         self,
         user_id: int,
@@ -156,6 +200,9 @@ class ExpenseService:
         status: ExpenseStatus | None = None,
     ) -> Expense:
 
+        # -------------------------------------------------
+        # Get expense
+        # -------------------------------------------------
         expense = await self.expense_repository.get_by_uuid(
             expense_uuid
         )
@@ -166,10 +213,15 @@ class ExpenseService:
                 detail="Expense not found",
             )
 
-        old_amount = Decimal(str(expense.amount))
+        old_amount = Decimal(
+            str(expense.amount)
+        )
+
         old_wallet_id = expense.wallet_id
 
+        # -------------------------------------------------
         # Get current wallet
+        # -------------------------------------------------
         old_wallet = await self.wallet_repository.get_by_id(
             old_wallet_id
         )
@@ -180,14 +232,18 @@ class ExpenseService:
                 detail="Wallet not found",
             )
 
-        # Convert new amount to Decimal
+        # -------------------------------------------------
+        # Determine new amount
+        # -------------------------------------------------
         new_amount = (
             Decimal(str(amount))
             if amount is not None
             else old_amount
         )
 
+        # -------------------------------------------------
         # Handle wallet change
+        # -------------------------------------------------
         if wallet_uuid is not None:
 
             new_wallet = await self.wallet_repository.get_by_uuid(
@@ -203,6 +259,9 @@ class ExpenseService:
                     detail="Wallet not found",
                 )
 
+            # ---------------------------------------------
+            # Moving expense to another wallet
+            # ---------------------------------------------
             if new_wallet.id != old_wallet_id:
 
                 if new_wallet.current_balance < new_amount:
@@ -211,16 +270,19 @@ class ExpenseService:
                         detail="Insufficient wallet balance",
                     )
 
-                # Return old expense amount to old wallet
+                # Return old expense amount
+                # to previous wallet
                 old_wallet.current_balance += old_amount
 
-                # Deduct new expense amount from new wallet
+                # Deduct expense from new wallet
                 new_wallet.current_balance -= new_amount
 
                 expense.wallet_id = new_wallet.id
 
             else:
-                # Same wallet, only amount changed
+                # -----------------------------------------
+                # Same wallet but amount changed
+                # -----------------------------------------
                 difference = new_amount - old_amount
 
                 if difference > 0:
@@ -239,7 +301,9 @@ class ExpenseService:
                         difference
                     )
 
-        # Handle amount change without wallet change
+        # -------------------------------------------------
+        # Amount changed but wallet did not change
+        # -------------------------------------------------
         elif amount is not None and new_amount != old_amount:
 
             difference = new_amount - old_amount
@@ -260,7 +324,9 @@ class ExpenseService:
                     difference
                 )
 
+        # -------------------------------------------------
         # Handle category change
+        # -------------------------------------------------
         if category_uuid is not None:
 
             category = await self.category_repository.get_by_uuid(
@@ -278,7 +344,9 @@ class ExpenseService:
 
             expense.category_id = category.id
 
-        # Update expense fields
+        # -------------------------------------------------
+        # Update fields
+        # -------------------------------------------------
         if amount is not None:
             expense.amount = new_amount
 
@@ -295,6 +363,9 @@ class ExpenseService:
             expense
         )
 
+    # =====================================================
+    # DELETE EXPENSE
+    # =====================================================
     async def delete_expense(
         self,
         user_id: int,
@@ -321,10 +392,14 @@ class ExpenseService:
                 detail="Wallet not found",
             )
 
-        # Return the expense amount to the wallet
+        # If active expense is deleted,
+        # return its amount to wallet
         if expense.status == ExpenseStatus.ACTIVE:
+
             wallet.current_balance += Decimal(
                 str(expense.amount)
             )
 
-        await self.expense_repository.delete(expense)
+        await self.expense_repository.delete(
+            expense
+        )
