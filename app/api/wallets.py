@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.wallet import Wallet
 from app.repositories.wallet import WalletRepository
+from app.repositories.expense import ExpenseRepository
 from app.schemas.wallet import (
     WalletCreate,
     WalletResponse,
@@ -98,7 +99,6 @@ async def get_wallet(
             detail="Wallet not found",
         )
 
-    # Make sure the wallet belongs to the logged-in user
     if wallet.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -131,7 +131,6 @@ async def update_wallet(
             detail="Wallet not found",
         )
 
-    # Make sure the wallet belongs to the logged-in user
     if wallet.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -151,7 +150,7 @@ async def update_wallet(
 # 5. DELETE
 @router.delete(
     "/{wallet_uuid}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
 )
 async def delete_wallet(
     wallet_uuid: UUID,
@@ -170,13 +169,26 @@ async def delete_wallet(
             detail="Wallet not found",
         )
 
-    # Make sure the wallet belongs to the logged-in user
     if wallet.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Wallet not found",
         )
 
+    expense_repository = ExpenseRepository(db)
+
+    has_expenses = await expense_repository.exists_by_wallet(
+        wallet_id=wallet.id
+    )
+
+    if has_expenses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete wallet because it has associated expenses",
+        )
+
     await repository.delete(wallet)
 
-    return None
+    return {
+        "message": "Wallet deleted successfully"
+    }
