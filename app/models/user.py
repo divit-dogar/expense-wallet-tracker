@@ -1,8 +1,9 @@
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, Uuid
+from sqlalchemy import DateTime, Enum as SAEnum, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,13 +14,27 @@ if TYPE_CHECKING:
     from app.models.expense import Expense
 
 
+class UserStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
+    DELETED = "DELETED"
+
+
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,
+        autoincrement=True,
+    )
+
+    uuid: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid,
+        unique=True,
+        nullable=False,
+        default=uuid_lib.uuid4,
     )
 
     wallets: Mapped[list["Wallet"]] = relationship(
@@ -35,25 +50,31 @@ class User(Base):
     )
 
     first_name: Mapped[str] = mapped_column(
-        String(100)
+        String(100),
+        nullable=False,
     )
 
     last_name: Mapped[str] = mapped_column(
-        String(100)
+        String(100),
+        nullable=False,
     )
 
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
         index=True,
+        nullable=False,
     )
 
     hashed_password: Mapped[str] = mapped_column(
-        String(255)
+        String(255),
+        nullable=False,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(50)
+    status: Mapped[UserStatus] = mapped_column(
+        SAEnum(UserStatus),
+        nullable=False,
+        default=UserStatus.ACTIVE,
     )
 
     created_at: Mapped[datetime] = mapped_column(
