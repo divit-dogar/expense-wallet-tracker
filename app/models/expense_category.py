@@ -1,8 +1,17 @@
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import (
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -12,17 +21,29 @@ if TYPE_CHECKING:
     from app.models.expense import Expense
 
 
+class ExpenseCategoryStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
 class ExpenseCategory(Base):
     __tablename__ = "expense_categories"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+    id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,
+        autoincrement=True,
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    uuid: Mapped[uuid_lib.UUID] = mapped_column(
         Uuid,
+        unique=True,
+        nullable=False,
+        default=uuid_lib.uuid4,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("users.id"),
         nullable=False,
     )
@@ -45,8 +66,8 @@ class ExpenseCategory(Base):
         nullable=True,
     )
 
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer,
         ForeignKey("expense_categories.id"),
         nullable=True,
     )
@@ -60,9 +81,10 @@ class ExpenseCategory(Base):
         back_populates="parent",
     )
 
-    status: Mapped[str] = mapped_column(
-        String(50),
+    status: Mapped[ExpenseCategoryStatus] = mapped_column(
+        SAEnum(ExpenseCategoryStatus),
         nullable=False,
+        default=ExpenseCategoryStatus.ACTIVE,
     )
 
     created_at: Mapped[datetime] = mapped_column(
