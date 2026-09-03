@@ -32,11 +32,32 @@ def create_access_token(
 
     payload = {
         "sub": user_uuid,
+        "type": "access",
         "exp": expire,
     }
 
     return jwt.encode(
-    payload,
-    settings.JWT_SECRET_KEY,
-    algorithm=settings.JWT_ALGORITHM,
+        payload,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+
+def create_refresh_token(
+    user_uuid: str,
+) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+    )
+
+    payload = {
+        "sub": user_uuid,
+        "type": "refresh",
+        "exp": expire, 
+    }
+
+    return jwt.encode(
+        payload,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
     )

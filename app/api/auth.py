@@ -1,20 +1,28 @@
+# app/api/.../auth.py
+
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
     hash_password,
     verify_password,
 )
 from app.models.user import User, UserStatus
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
+    AccessTokenResponse,
     LoginRequest,
+    RefreshTokenRequest,
     TokenResponse,
     UserCreate,
 )
-from app.api.dependencies import get_current_user
+
 
 router = APIRouter(
     prefix="/auth",
@@ -56,7 +64,11 @@ async def register(
         "status": created_user.status,
     }
 
-@router.post("/login")
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+)
 async def login(
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db),
@@ -86,10 +98,67 @@ async def login(
         str(user.uuid)
     )
 
+    refresh_token = create_refresh_token(
+        str(user.uuid)
+    )
+
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
     )
+
+
+@router.post(
+    "/refresh",
+    response_model=AccessTokenResponse,
+)
+async def refresh_access_token(
+    token_data: RefreshTokenRequest,
+):
+    try:
+        payload = jwt.decode(
+            token_data.refresh_token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+
+        user_uuid = payload.get("sub")
+        token_type = payload.get("type")
+
+        if not user_uuid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+
+        if token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token expired",
+        )
+
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    new_access_token = create_access_token(
+        user_uuid
+    )
+
+    return AccessTokenResponse(
+        access_token=new_access_token,
+        token_type="bearer",
+    )
+
 
 @router.get("/me")
 async def get_me(

@@ -1,8 +1,13 @@
+# app/api/dependencies.py
+
 from uuid import UUID
 
 import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -29,11 +34,18 @@ async def get_current_user(
         )
 
         user_uuid = payload.get("sub")
+        token_type = payload.get("type")
 
         if not user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
+            )
+
+        if token_type != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Access token required",
             )
 
         user_uuid = UUID(user_uuid)
