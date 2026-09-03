@@ -16,7 +16,7 @@ class WalletRepository:
         await self.db.commit()
         await self.db.refresh(wallet)
         return wallet
-   
+
     async def get_by_id(
         self,
         wallet_id: int,
@@ -46,7 +46,9 @@ class WalletRepository:
         user_id: int,
     ) -> list[Wallet]:
         statement = select(Wallet).where(
-            Wallet.user_id == user_id
+            Wallet.user_id == user_id,
+            Wallet.status == "ACTIVE",
+
         )
 
         result = await self.db.execute(statement)
