@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.factories.currency_factory import CurrencyFactory
 from app.models.wallet import Wallet
 from app.repositories.wallet import WalletRepository
 from app.services.currency import CurrencyService
-from app.strategies.open_exchange_strategy import OpenExchangeStrategy
 
 
 class WalletService:
@@ -11,7 +12,9 @@ class WalletService:
     def __init__(self, db: AsyncSession):
         self.repository = WalletRepository(db)
 
-        currency_strategy = OpenExchangeStrategy()
+        currency_strategy = CurrencyFactory.create_strategy(
+            settings.CURRENCY_PROVIDER
+        )
 
         self.currency_service = CurrencyService(
             strategy=currency_strategy,
